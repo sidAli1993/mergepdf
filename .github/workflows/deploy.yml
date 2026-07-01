@@ -65,7 +65,7 @@ jobs:
             pm2 save
 
             # 6. Configure Nginx Virtual Host if missing
-            if [ ! -f "/etc/nginx/sites-available/mergepdf" ]; then
+            if [ ! -f "/etc/nginx/conf.d/mergepdf.conf" ] && [ ! -f "/etc/nginx/sites-available/mergepdf" ]; then
               echo "Configuring Nginx Virtual Host..."
               NGINX_CONF="server {
                   listen 80;
@@ -83,10 +83,16 @@ jobs:
                       proxy_read_timeout 60s;
                   }
               }"
-              echo "$NGINX_CONF" > /etc/nginx/sites-available/mergepdf
-              ln -sf /etc/nginx/sites-available/mergepdf /etc/nginx/sites-enabled/mergepdf
+              if [ -d "/etc/nginx/sites-available" ]; then
+                echo "$NGINX_CONF" > /etc/nginx/sites-available/mergepdf
+                ln -sf /etc/nginx/sites-available/mergepdf /etc/nginx/sites-enabled/mergepdf
+              elif [ -d "/etc/nginx/conf.d" ]; then
+                echo "$NGINX_CONF" > /etc/nginx/conf.d/mergepdf.conf
+              else
+                echo "Warning: Nginx configuration directory not found!"
+              fi
               nginx -t
-              systemctl reload nginx
+              systemctl reload nginx || service nginx reload
             fi
 
             echo "=== Deployment Complete! ==="
