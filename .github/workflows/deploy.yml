@@ -67,7 +67,12 @@ jobs:
             # 6. HestiaCP Web Domain & SSL Integration
             HESTIA_CLI="/usr/local/hestia/bin"
             if [ -d "$HESTIA_CLI" ]; then
-              echo "HestiaCP detected. Resetting web domain configuration to default for Let's Encrypt request..."
+              echo "HestiaCP detected. Cleaning up standalone Nginx configs to resolve conflicts..."
+              
+              # Remove conflicting standalone files if present
+              rm -f /etc/nginx/sites-available/mergepdf
+              rm -f /etc/nginx/sites-enabled/mergepdf
+              rm -f /etc/nginx/conf.d/mergepdf.conf
               
               # Add web domain to user 'isa_cpanel' if not present
               $HESTIA_CLI/v-add-web-domain isa_cpanel mergepdf.mydigitsign.com || true
