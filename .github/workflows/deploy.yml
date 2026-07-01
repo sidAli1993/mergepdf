@@ -77,18 +77,36 @@ jobs:
               # Add web domain to user 'isa_cpanel' if not present
               $HESTIA_CLI/v-add-web-domain isa_cpanel mergepdf.mydigitsign.com || true
               
-              # Rebuild configurations to default template to ensure Let's Encrypt challenge succeeds
-              echo "Rebuilding web domain default configurations..."
-              $HESTIA_CLI/v-rebuild-web-domain isa_cpanel mergepdf.mydigitsign.com || true
-              nginx -t
-              systemctl reload nginx || service nginx reload
+              # Request SSL certificate via Certbot standalone
+              echo "Requesting SSL certificate via Certbot standalone..."
+              if ! command -v certbot &> /dev/null; then
+                echo "Installing certbot..."
+                apt-get update && apt-get install -y certbot
+              fi
+
+              # Temporarily stop Nginx to free port 80 (takes < 5s)
+              echo "Stopping Nginx temporarily..."
+              systemctl stop nginx || true
               
-              # Request Let's Encrypt SSL certificate
-              echo "Requesting Let's Encrypt certificate..."
-              $HESTIA_CLI/v-add-letsencrypt-domain isa_cpanel mergepdf.mydigitsign.com || true
+              # Request standalone certificate
+              echo "Running certbot..."
+              certbot certonly --standalone -d mergepdf.mydigitsign.com --non-interactive --agree-tos --email webmaster@mydigitsign.com || true
+              
+              # Start Nginx back up immediately
+              echo "Starting Nginx..."
+              systemctl start nginx || true
+              
+              # Verify if certbot generated the certificate and copy to HestiaCP paths
+              CERT_DIR="/etc/letsencrypt/live/mergepdf.mydigitsign.com"
+              CONF_DIR="/home/isa_cpanel/conf/web/mergepdf.mydigitsign.com"
+              if [ -d "$CERT_DIR" ] && [ -d "$CONF_DIR" ]; then
+                echo "Certbot certificate found. Copying to HestiaCP directories..."
+                cp -f $CERT_DIR/fullchain.pem $CONF_DIR/ssl.mergepdf.mydigitsign.com.pem
+                cp -f $CERT_DIR/privkey.pem $CONF_DIR/ssl.mergepdf.mydigitsign.com.key
+                chown -R isa_cpanel:isa_cpanel $CONF_DIR/ssl.mergepdf.mydigitsign.com.* || true
+              fi
               
               # Write custom proxy configuration to Nginx files managed by HestiaCP
-              CONF_DIR="/home/isa_cpanel/conf/web/mergepdf.mydigitsign.com"
               if [ -d "$CONF_DIR" ]; then
                 echo "Writing Nginx proxy templates to HestiaCP configurations..."
                 
