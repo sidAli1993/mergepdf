@@ -79,42 +79,33 @@ jobs:
               CONF_DIR="/home/isa_cpanel/conf/web/mergepdf.mydigitsign.com"
               if [ -d "$CONF_DIR" ]; then
                 echo "Writing Nginx proxy templates to HestiaCP configurations..."
-                
-                # Standard HTTP Proxy
-                cat << 'EOF' > $CONF_DIR/nginx.conf
-server {
-    listen      80;
-    server_name mergepdf.mydigitsign.com;
-    
-    # Redirect HTTP to HTTPS
-    return 301 https://$host$request_uri;
-}
-EOF
+                                # Standard HTTP Proxy
+                 echo 'server {' > $CONF_DIR/nginx.conf
+                 echo '    listen      80;' >> $CONF_DIR/nginx.conf
+                 echo '    server_name mergepdf.mydigitsign.com;' >> $CONF_DIR/nginx.conf
+                 echo '    return 301 https://$host$request_uri;' >> $CONF_DIR/nginx.conf
+                 echo '}' >> $CONF_DIR/nginx.conf
 
-                # Secured HTTPS Proxy
-                cat << 'EOF' > $CONF_DIR/nginx.ssl.conf
-server {
-    listen      443 ssl http2;
-    server_name mergepdf.mydigitsign.com;
-    
-    ssl_certificate      /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/ssl.mergepdf.mydigitsign.com.pem;
-    ssl_certificate_key  /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/ssl.mergepdf.mydigitsign.com.key;
-    
-    location / {
-        proxy_pass      http://localhost:3001;
-        proxy_redirect  off;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-EOF
-              fi
+                 # Secured HTTPS Proxy
+                 echo 'server {' > $CONF_DIR/nginx.ssl.conf
+                 echo '    listen      443 ssl http2;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '    server_name mergepdf.mydigitsign.com;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '    ssl_certificate      /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/ssl.mergepdf.mydigitsign.com.pem;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '    ssl_certificate_key  /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/ssl.mergepdf.mydigitsign.com.key;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '    location / {' >> $CONF_DIR/nginx.ssl.conf
+                 echo '        proxy_pass      http://localhost:3001;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '        proxy_redirect  off;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '        proxy_set_header Host $host;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '        proxy_set_header X-Real-IP $remote_addr;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '        proxy_set_header X-Forwarded-Proto $scheme;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '        proxy_http_version 1.1;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '        proxy_set_header Upgrade $http_upgrade;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '        proxy_set_header Connection "upgrade";' >> $CONF_DIR/nginx.ssl.conf
+                 echo '        proxy_cache_bypass $http_upgrade;' >> $CONF_DIR/nginx.ssl.conf
+                 echo '    }' >> $CONF_DIR/nginx.ssl.conf
+                 echo '}' >> $CONF_DIR/nginx.ssl.conf
+               fi
               
               # Test Nginx and reload
               nginx -t
