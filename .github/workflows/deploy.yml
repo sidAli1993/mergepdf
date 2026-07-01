@@ -64,35 +64,90 @@ jobs:
             PORT=3001 pm2 start npm --name "mergepdf" -- start
             pm2 save
 
-            # 6. Configure Nginx Virtual Host if missing
-            if [ ! -f "/etc/nginx/conf.d/mergepdf.conf" ] && [ ! -f "/etc/nginx/sites-available/mergepdf" ]; then
-              echo "Configuring Nginx Virtual Host..."
-              NGINX_CONF="server {
-                  listen 80;
-                  server_name mergepdf.mydigitsign.com;
-                  location / {
-                      proxy_pass http://localhost:3001;
-                      proxy_http_version 1.1;
-                      proxy_set_header Upgrade \$http_upgrade;
-                      proxy_set_header Connection 'upgrade';
-                      proxy_set_header Host \$host;
-                      proxy_set_header X-Real-IP \$remote_addr;
-                      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                      proxy_set_header X-Forwarded-Proto \$scheme;
-                      proxy_cache_bypass \$http_upgrade;
-                      proxy_read_timeout 60s;
-                  }
-              }"
-              if [ -d "/etc/nginx/sites-available" ]; then
-                echo "$NGINX_CONF" > /etc/nginx/sites-available/mergepdf
-                ln -sf /etc/nginx/sites-available/mergepdf /etc/nginx/sites-enabled/mergepdf
-              elif [ -d "/etc/nginx/conf.d" ]; then
-                echo "$NGINX_CONF" > /etc/nginx/conf.d/mergepdf.conf
-              else
-                echo "Warning: Nginx configuration directory not found!"
+            # 6. HestiaCP Web Domain & SSL Integration
+            HESTIA_CLI="/usr/local/hestia/bin"
+            if [ -d "$HESTIA_CLI" ]; then
+              echo "HestiaCP detected. Registering domain and setting up SSL..."
+              
+              # Add web domain to user 'isa_cpanel' if not present
+              $HESTIA_CLI/v-add-web-domain isa_cpanel mergepdf.mydigitsign.com || true
+              
+              # Request Let's Encrypt SSL certificate
+              $HESTIA_CLI/v-add-web-domain-ssl isa_cpanel mergepdf.mydigitsign.com yes || true
+              
+              # Write custom proxy configuration to Nginx files managed by HestiaCP
+              CONF_DIR="/home/isa_cpanel/conf/web/mergepdf.mydigitsign.com"
+              if [ -d "$CONF_DIR" ]; then
+                echo "Writing Nginx proxy templates to HestiaCP configurations..."
+                
+                # Standard HTTP Proxy
+                cat << 'EOF' > $CONF_DIR/nginx.conf
+server {
+    listen      80;
+    server_name mergepdf.mydigitsign.com;
+    
+    # Redirect HTTP to HTTPS
+    return 301 https://$host$request_uri;
+}
+EOF
+
+                # Secured HTTPS Proxy
+                cat << 'EOF' > $CONF_DIR/nginx.ssl.conf
+server {
+    listen      443 ssl http2;
+    server_name mergepdf.mydigitsign.com;
+    
+    ssl_certificate      /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/ssl.mergepdf.mydigitsign.com.pem;
+    ssl_certificate_key  /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/ssl.mergepdf.mydigitsign.com.key;
+    
+    location / {
+        proxy_pass      http://localhost:3001;
+        proxy_redirect  off;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+EOF
               fi
+              
+              # Test Nginx and reload
               nginx -t
               systemctl reload nginx || service nginx reload
+            else
+              # Fallback for standalone Nginx without HestiaCP
+              if [ ! -f "/etc/nginx/conf.d/mergepdf.conf" ] && [ ! -f "/etc/nginx/sites-available/mergepdf" ]; then
+                echo "Standalone Nginx configuration..."
+                NGINX_CONF="server {
+                    listen 80;
+                    server_name mergepdf.mydigitsign.com;
+                    location / {
+                        proxy_pass http://localhost:3001;
+                        proxy_http_version 1.1;
+                        proxy_set_header Upgrade \$http_upgrade;
+                        proxy_set_header Connection 'upgrade';
+                        proxy_set_header Host \$host;
+                        proxy_set_header X-Real-IP \$remote_addr;
+                        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                        proxy_set_header X-Forwarded-Proto \$scheme;
+                        proxy_cache_bypass \$http_upgrade;
+                        proxy_read_timeout 60s;
+                    }
+                }"
+                if [ -d "/etc/nginx/sites-available" ]; then
+                  echo "$NGINX_CONF" > /etc/nginx/sites-available/mergepdf
+                  ln -sf /etc/nginx/sites-available/mergepdf /etc/nginx/sites-enabled/mergepdf
+                elif [ -d "/etc/nginx/conf.d" ]; then
+                  echo "$NGINX_CONF" > /etc/nginx/conf.d/mergepdf.conf
+                fi
+                nginx -t
+                systemctl reload nginx || service nginx reload
+              fi
             fi
 
             echo "=== Deployment Complete! ==="
