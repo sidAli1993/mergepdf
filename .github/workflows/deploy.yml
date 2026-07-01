@@ -37,7 +37,7 @@ jobs:
             echo "=== Loading NVM environment ==="
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            
+
             echo "=== Starting MergePDF Deployment ==="
 
             # 1. Clone repository if not present
@@ -47,146 +47,109 @@ jobs:
             fi
 
             cd /var/www/mergepdf
-            
-            # 2. Pull code
+
+            # 2. Pull latest code
             git fetch --all
             git reset --hard origin/main
 
-            # 3. Build & Install
+            # 3. Install & Build
             npm ci --production=false
             npm run build
 
             # 4. Set port configuration
             echo "PORT=3001" > .env
 
-            # 5. PM2 deployment
-            pm2 delete mergepdf 2>/dev/null || true
-            PORT=3001 pm2 start npm --name "mergepdf" -- start
+            # 5. PM2 - restart or start the app
+            if pm2 list | grep -q "mergepdf"; then
+              pm2 restart mergepdf
+            else
+              PORT=3001 pm2 start npm --name "mergepdf" -- start
+            fi
             pm2 save
 
-            # 6. HestiaCP Web Domain & SSL Integration
-            HESTIA_CLI="/usr/local/hestia/bin"
-            if [ -d "$HESTIA_CLI" ]; then
-              echo "HestiaCP detected. Cleaning up standalone Nginx configs to resolve conflicts..."
-              
-              # Remove conflicting standalone files if present
-              rm -f /etc/nginx/sites-available/mergepdf
-              rm -f /etc/nginx/sites-enabled/mergepdf
-              rm -f /etc/nginx/conf.d/mergepdf.conf
-              
-              # Add web domain to user 'isa_cpanel' if not present
-              $HESTIA_CLI/v-add-web-domain isa_cpanel mergepdf.mydigitsign.com || true
-              
-              # Request SSL certificate via Certbot standalone
-              echo "Requesting SSL certificate via Certbot standalone..."
+            # 6. SSL + Nginx proxy via Certbot (only if cert doesn't already exist)
+            CERT_PATH="/etc/letsencrypt/live/mergepdf.mydigitsign.com/fullchain.pem"
+            if [ ! -f "$CERT_PATH" ]; then
+              echo "SSL certificate not found. Requesting via Certbot standalone..."
               if ! command -v certbot &> /dev/null; then
-                echo "Installing certbot..."
-                apt-get update && apt-get install -y certbot
+                apt-get update -qq && apt-get install -y certbot
               fi
-
-              # Temporarily stop Nginx to free port 80 (takes < 5s)
-              echo "Stopping Nginx temporarily..."
+              # Stop Nginx briefly to free port 80
               systemctl stop nginx || true
-              
-              # Request standalone certificate
-              echo "Running certbot..."
-              certbot certonly --standalone -d mergepdf.mydigitsign.com --non-interactive --agree-tos --email webmaster@mydigitsign.com || true
-              
-              # Start Nginx back up immediately
-              echo "Starting Nginx..."
+              certbot certonly --standalone \
+                -d mergepdf.mydigitsign.com \
+                --non-interactive \
+                --agree-tos \
+                --email webmaster@mydigitsign.com
+              # Restart Nginx
               systemctl start nginx || true
-              
-              # Verify if certbot generated the certificate and copy to HestiaCP paths
-              CERT_DIR="/etc/letsencrypt/live/mergepdf.mydigitsign.com"
-              CONF_DIR="/home/isa_cpanel/conf/web/mergepdf.mydigitsign.com"
-              if [ -d "$CERT_DIR" ] && [ -d "$CONF_DIR" ]; then
-                echo "Certbot certificate found. Copying to HestiaCP directories..."
-                cp -f $CERT_DIR/fullchain.pem $CONF_DIR/ssl.mergepdf.mydigitsign.com.pem
-                cp -f $CERT_DIR/privkey.pem $CONF_DIR/ssl.mergepdf.mydigitsign.com.key
-                chown -R isa_cpanel:isa_cpanel $CONF_DIR/ssl.mergepdf.mydigitsign.com.* || true
-              fi
-              
-              # Write custom proxy configuration to Nginx files managed by HestiaCP
-              if [ -d "$CONF_DIR" ]; then
-                echo "Writing Nginx proxy templates to HestiaCP configurations..."
-                
-                # Write Standard HTTP Proxy config (keeps Let's Encrypt ACME challenges local)
-                cat << 'EOF' > $CONF_DIR/nginx.conf
+              echo "SSL certificate obtained successfully."
+            else
+              echo "SSL certificate already exists. Skipping Certbot."
+            fi
+
+            # 7. Write the Nginx configuration directly (not via HestiaCP)
+            #    We write to /etc/nginx/conf.d/ to avoid conflict with HestiaCP's per-domain conf.
+            #    This is the ONLY config block for this subdomain.
+            echo "Writing Nginx proxy configuration for mergepdf.mydigitsign.com..."
+            cat > /etc/nginx/conf.d/mergepdf.conf << 'NGINXEOF'
+            # MergePDF - HTTP to HTTPS redirect
             server {
-                listen      80;
+                listen 80;
                 server_name mergepdf.mydigitsign.com;
 
+                # Allow Let's Encrypt ACME challenges
                 location /.well-known/acme-challenge/ {
-                    root /home/isa_cpanel/web/mergepdf.mydigitsign.com/public_html;
+                    root /var/www/certbot;
                 }
 
+                # Redirect all HTTP to HTTPS
                 location / {
                     return 301 https://$host$request_uri;
                 }
             }
-            EOF
 
-                # Write Secured HTTPS Proxy config
-                cat << 'EOF' > $CONF_DIR/nginx.ssl.conf
+            # MergePDF - HTTPS proxy to Next.js on port 3001
             server {
-                listen      443 ssl http2;
+                listen 443 ssl http2;
                 server_name mergepdf.mydigitsign.com;
 
-                ssl_certificate      /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/ssl.mergepdf.mydigitsign.com.pem;
-                ssl_certificate_key  /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/ssl.mergepdf.mydigitsign.com.key;
-
-                location /.well-known/acme-challenge/ {
-                    root /home/isa_cpanel/web/mergepdf.mydigitsign.com/public_html;
-                }
+                ssl_certificate     /etc/letsencrypt/live/mergepdf.mydigitsign.com/fullchain.pem;
+                ssl_certificate_key /etc/letsencrypt/live/mergepdf.mydigitsign.com/privkey.pem;
+                ssl_protocols       TLSv1.2 TLSv1.3;
+                ssl_ciphers         HIGH:!aNULL:!MD5;
 
                 location / {
-                    proxy_pass      http://localhost:3001;
-                    proxy_redirect  off;
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto $scheme;
-                    proxy_http_version 1.1;
-                    proxy_set_header Upgrade $http_upgrade;
-                    proxy_set_header Connection "upgrade";
-                    proxy_cache_bypass $http_upgrade;
+                    proxy_pass          http://127.0.0.1:3001;
+                    proxy_http_version  1.1;
+                    proxy_set_header    Upgrade $http_upgrade;
+                    proxy_set_header    Connection "upgrade";
+                    proxy_set_header    Host $host;
+                    proxy_set_header    X-Real-IP $remote_addr;
+                    proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header    X-Forwarded-Proto $scheme;
+                    proxy_cache_bypass  $http_upgrade;
+                    proxy_read_timeout  60s;
                 }
             }
-            EOF
-              fi
-              
-              # Test Nginx and reload
-              nginx -t
-              systemctl reload nginx || service nginx reload
-            else
-              # Fallback for standalone Nginx without HestiaCP
-              if [ ! -f "/etc/nginx/conf.d/mergepdf.conf" ] && [ ! -f "/etc/nginx/sites-available/mergepdf" ]; then
-                echo "Standalone Nginx configuration..."
-                NGINX_CONF="server {
-                    listen 80;
-                    server_name mergepdf.mydigitsign.com;
-                    location / {
-                        proxy_pass http://localhost:3001;
-                        proxy_http_version 1.1;
-                        proxy_set_header Upgrade \$http_upgrade;
-                        proxy_set_header Connection 'upgrade';
-                        proxy_set_header Host \$host;
-                        proxy_set_header X-Real-IP \$remote_addr;
-                        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                        proxy_set_header X-Forwarded-Proto \$scheme;
-                        proxy_cache_bypass \$http_upgrade;
-                        proxy_read_timeout 60s;
-                    }
-                }"
-                if [ -d "/etc/nginx/sites-available" ]; then
-                  echo "$NGINX_CONF" > /etc/nginx/sites-available/mergepdf
-                  ln -sf /etc/nginx/sites-available/mergepdf /etc/nginx/sites-enabled/mergepdf
-                elif [ -d "/etc/nginx/conf.d" ]; then
-                  echo "$NGINX_CONF" > /etc/nginx/conf.d/mergepdf.conf
-                fi
-                nginx -t
-                systemctl reload nginx || service nginx reload
-              fi
+            NGINXEOF
+
+            # 8. Remove any HestiaCP-managed blocks for this domain from nginx.conf
+            #    to avoid duplicate server_name conflicts on port 80/443
+            HESTIA_CONF="/home/isa_cpanel/conf/web/mergepdf.mydigitsign.com"
+            if [ -d "$HESTIA_CONF" ]; then
+              echo "Disabling HestiaCP nginx includes for this domain to prevent conflicts..."
+              # Replace HestiaCP's nginx.conf with a comment-only file (no active server blocks)
+              echo "# Managed by deploy pipeline - proxy handled in /etc/nginx/conf.d/mergepdf.conf" > $HESTIA_CONF/nginx.conf
+              echo "# Managed by deploy pipeline - proxy handled in /etc/nginx/conf.d/mergepdf.conf" > $HESTIA_CONF/nginx.ssl.conf
             fi
 
-            echo "=== Deployment Complete! ==="
+            # 9. Test and reload Nginx
+            echo "Testing Nginx configuration..."
+            nginx -t
+            echo "Reloading Nginx..."
+            systemctl reload nginx || service nginx reload
+
+            echo ""
+            echo "=== MergePDF Deployment Complete! ==="
+            echo "=== App running on https://mergepdf.mydigitsign.com ==="
