@@ -90,8 +90,9 @@ jobs:
             cat /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/nginx.conf_letsencrypt 2>/dev/null || echo "Not found"
             echo "==========================="
 
-            # 8. Write proxy config to /etc/nginx/conf.d/domains/ (HestiaCP's actual domain include dir)
-            echo "Writing Nginx proxy configuration to domains directory..."
+            # 8. Write proxy config — MUST break symlink first or step 10 will overwrite it
+            echo "Breaking symlink and writing real proxy config to domains directory..."
+            rm -f /etc/nginx/conf.d/domains/mergepdf.mydigitsign.com.conf
             cat > /etc/nginx/conf.d/domains/mergepdf.mydigitsign.com.conf << 'NGINXEOF'
             server {
                 listen 80;
