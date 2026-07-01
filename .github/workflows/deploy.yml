@@ -1,0 +1,57 @@
+name: Deploy MergePDF to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js app
+        run: npm run build
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            set -e
+            echo "=== Starting MergePDF Deployment ==="
+
+            # Navigate to app directory
+            cd /var/www/mergepdf
+
+            # Pull latest code
+            git pull origin main
+
+            # Install deps
+            npm ci --production=false
+
+            # Build
+            npm run build
+
+            # Restart PM2
+            pm2 restart mergepdf || pm2 start npm --name "mergepdf" -- start
+
+            # Save PM2 config
+            pm2 save
+
+            echo "=== Deployment Complete! ==="
