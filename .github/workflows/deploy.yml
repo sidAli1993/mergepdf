@@ -36,22 +36,53 @@ jobs:
             set -e
             echo "=== Starting MergePDF Deployment ==="
 
-            # Navigate to app directory
+            # 1. Clone repository if not present
+            if [ ! -d "/var/www/mergepdf" ]; then
+              echo "Cloning repository..."
+              git clone https://github.com/sidAli1993/mergepdf.git /var/www/mergepdf
+            fi
+
             cd /var/www/mergepdf
+            
+            # 2. Pull code
+            git fetch --all
+            git reset --hard origin/main
 
-            # Pull latest code
-            git pull origin main
-
-            # Install deps
+            # 3. Build & Install
             npm ci --production=false
-
-            # Build
             npm run build
 
-            # Restart PM2
-            pm2 restart mergepdf || pm2 start npm --name "mergepdf" -- start
+            # 4. Set port configuration
+            echo "PORT=3001" > .env
 
-            # Save PM2 config
+            # 5. PM2 deployment
+            pm2 delete mergepdf 2>/dev/null || true
+            PORT=3001 pm2 start npm --name "mergepdf" -- start
             pm2 save
+
+            # 6. Configure Nginx Virtual Host if missing
+            if [ ! -f "/etc/nginx/sites-available/mergepdf" ]; then
+              echo "Configuring Nginx Virtual Host..."
+              NGINX_CONF="server {
+                  listen 80;
+                  server_name mergepdf.mydigitsign.com;
+                  location / {
+                      proxy_pass http://localhost:3001;
+                      proxy_http_version 1.1;
+                      proxy_set_header Upgrade \$http_upgrade;
+                      proxy_set_header Connection 'upgrade';
+                      proxy_set_header Host \$host;
+                      proxy_set_header X-Real-IP \$remote_addr;
+                      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                      proxy_set_header X-Forwarded-Proto \$scheme;
+                      proxy_cache_bypass \$http_upgrade;
+                      proxy_read_timeout 60s;
+                  }
+              }"
+              echo "$NGINX_CONF" > /etc/nginx/sites-available/mergepdf
+              ln -sf /etc/nginx/sites-available/mergepdf /etc/nginx/sites-enabled/mergepdf
+              nginx -t
+              systemctl reload nginx
+            fi
 
             echo "=== Deployment Complete! ==="
