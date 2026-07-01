@@ -81,34 +81,23 @@ jobs:
               echo "SSL certificate already exists. Skipping Certbot."
             fi
 
-            # 7. DIAGNOSTIC: Show all active Nginx includes for this domain
-            echo ""
-            echo "=== NGINX DIAGNOSTIC ==="
-            echo "--- Active includes from nginx.conf ---"
-            grep "include" /etc/nginx/nginx.conf || true
-            echo ""
-            echo "--- All server_name matches for mergepdf.mydigitsign.com ---"
-            grep -rn "mergepdf.mydigitsign.com" /etc/nginx/ /home/isa_cpanel/conf/ 2>/dev/null || true
-            echo ""
-            echo "--- HestiaCP conf dir listing ---"
-            ls -la /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/ 2>/dev/null || echo "dir not found"
-            echo ""
-            echo "--- HestiaCP nginx.conf content ---"
-            cat /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/nginx.conf 2>/dev/null || echo "file not found"
-            echo ""
-            echo "--- Our conf.d/mergepdf.conf ---"
-            cat /etc/nginx/conf.d/mergepdf.conf 2>/dev/null || echo "file not found"
-            echo "=== END DIAGNOSTIC ==="
-            echo ""
+            # 7. DIAGNOSTIC: Show all Nginx domain configs
+            echo "=== Checking /etc/nginx/conf.d/domains/ ==="
+            ls -la /etc/nginx/conf.d/domains/ 2>/dev/null | grep -i mergepdf || echo "No mergepdf file in domains/"
+            echo "Content of domains/mergepdf conf if it exists:"
+            cat /etc/nginx/conf.d/domains/mergepdf.mydigitsign.com.conf 2>/dev/null || echo "Not found"
+            echo "Content of nginx.conf_letsencrypt:"
+            cat /home/isa_cpanel/conf/web/mergepdf.mydigitsign.com/nginx.conf_letsencrypt 2>/dev/null || echo "Not found"
+            echo "==========================="
 
-            # 8. Write the definitive Nginx config to conf.d
-            echo "Writing Nginx proxy configuration..."
-            cat > /etc/nginx/conf.d/mergepdf.conf << 'NGINXEOF'
+            # 8. Write proxy config to /etc/nginx/conf.d/domains/ (HestiaCP's actual domain include dir)
+            echo "Writing Nginx proxy configuration to domains directory..."
+            cat > /etc/nginx/conf.d/domains/mergepdf.mydigitsign.com.conf << 'NGINXEOF'
             server {
                 listen 80;
                 server_name mergepdf.mydigitsign.com;
                 location /.well-known/acme-challenge/ {
-                    root /var/www/certbot;
+                    root /home/isa_cpanel/web/mergepdf.mydigitsign.com/public_html;
                 }
                 location / {
                     return 301 https://$host$request_uri;
@@ -137,14 +126,17 @@ jobs:
             }
             NGINXEOF
 
-            # 9. Neutralize HestiaCP include files for this domain (prevent duplicate blocks)
+            # 9. Also remove the old conf.d/mergepdf.conf to avoid conflicts
+            rm -f /etc/nginx/conf.d/mergepdf.conf || true
+
+            # 10. Neutralize HestiaCP include files for this domain
             HESTIA_CONF="/home/isa_cpanel/conf/web/mergepdf.mydigitsign.com"
             if [ -d "$HESTIA_CONF" ]; then
               echo "Neutralizing HestiaCP include files..."
-              echo "# proxy handled by /etc/nginx/conf.d/mergepdf.conf" > $HESTIA_CONF/nginx.conf
-              echo "# proxy handled by /etc/nginx/conf.d/mergepdf.conf" > $HESTIA_CONF/nginx.ssl.conf
-              # Also check for and remove any .conf_backup or .conf_default HestiaCP files
-              rm -f $HESTIA_CONF/nginx.conf_backup 2>/dev/null || true
+              echo "# proxy handled by /etc/nginx/conf.d/domains/mergepdf.mydigitsign.com.conf" > $HESTIA_CONF/nginx.conf
+              echo "# proxy handled by /etc/nginx/conf.d/domains/mergepdf.mydigitsign.com.conf" > $HESTIA_CONF/nginx.ssl.conf
+              # Neutralize letsencrypt symlink file too (it adds another server block)
+              echo "# proxy handled by pipeline" > $HESTIA_CONF/nginx.conf_letsencrypt || true
             fi
 
             # 10. Test and reload Nginx
