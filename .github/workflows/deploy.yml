@@ -67,14 +67,20 @@ jobs:
             # 6. HestiaCP Web Domain & SSL Integration
             HESTIA_CLI="/usr/local/hestia/bin"
             if [ -d "$HESTIA_CLI" ]; then
-              echo "HestiaCP detected. Registering domain and setting up SSL..."
+              echo "HestiaCP detected. Resetting web domain configuration to default for SSL request..."
               
               # Add web domain to user 'isa_cpanel' if not present
               $HESTIA_CLI/v-add-web-domain isa_cpanel mergepdf.mydigitsign.com || true
               
+              # Rebuild configurations to default template to ensure Let's Encrypt challenge succeeds
+              echo "Rebuilding web domain default configurations..."
+              $HESTIA_CLI/v-rebuild-web-domain isa_cpanel mergepdf.mydigitsign.com || true
+              nginx -t
+              systemctl reload nginx || service nginx reload
+              
               # Request Let's Encrypt SSL certificate
-              $HESTIA_CLI/v-add-web-domain-ssl isa_cpanel mergepdf.mydigitsign.com || true
-              $HESTIA_CLI/v-change-web-domain-ssl-val isa_cpanel mergepdf.mydigitsign.com letsencrypt yes || true
+              echo "Requesting Let's Encrypt certificate..."
+              $HESTIA_CLI/v-add-web-domain-ssl-letsencrypt isa_cpanel mergepdf.mydigitsign.com || true
               
               # Write custom proxy configuration to Nginx files managed by HestiaCP
               CONF_DIR="/home/isa_cpanel/conf/web/mergepdf.mydigitsign.com"
