@@ -1,0 +1,332 @@
+/* RemovePagesTool — advanced styles */
+
+.statsBar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 56px;
+}
+
+.statNum {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 0.688rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.statDivider {
+  width: 1px;
+  height: 32px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.modeToggle {
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.modeBtn {
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.modeBtnActive {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.toolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.toolBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.rangeWrap {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+
+.rangeInput {
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  width: 130px;
+  outline: none;
+}
+
+.rangeInput::placeholder { color: var(--text-muted); }
+
+.rangeApply {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 10px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.rangeApply:hover { background: var(--accent-dark); }
+
+.zoomBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.688rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.zoomBtn:hover { border-color: var(--accent); color: var(--accent); }
+.zoomActive { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+/* Page grid */
+.pageGrid {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 80px; /* space for sticky bar */
+}
+
+.pageTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.1s ease;
+}
+
+.pageTile:hover { transform: translateY(-2px); }
+
+.pageTileThumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3/4;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  background: var(--bg-secondary);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pageTileThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.pageTile:hover .pageTileThumb {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* Selected (but not necessarily removed — depends on mode) */
+.pageTileSelected .pageTileThumb {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-glow) !important;
+}
+
+/* Marked for removal */
+.pageTileRemove .pageTileThumb {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
+}
+
+.pageTileOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(239, 68, 68, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(1px);
+}
+
+.removeBadge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.selectedOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(59, 130, 246, 0.15);
+  border: 2px solid var(--accent);
+}
+
+.pageLabel {
+  font-size: 0.688rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pageLabelRemove {
+  color: var(--danger);
+}
+
+/* Sticky bottom action bar */
+.stickyBar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: 0 -8px 24px rgba(0,0,0,0.08);
+  margin: -28px -28px 0;
+  z-index: 10;
+}
+
+.stickyInfo {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.stickyBold {
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.stickyBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, var(--danger), #f97316);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+}
+
+.stickyBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+}
+
+.stickyBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.stickyBtnLoading { animation: pulse 1.5s ease-in-out infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@media (max-width: 600px) {
+  .statsBar { gap: 6px; }
+  .stickyBar { flex-direction: column; gap: 10px; }
+  .stickyBtn { width: 100%; justify-content: center; }
+  .rangeInput { width: 90px; }
+}
