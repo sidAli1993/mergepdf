@@ -4,6 +4,70 @@
   flex-direction: column;
 }
 
+/* ── Tab Bar ─────────────────────────────────────────── */
+.tabBar {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 5px;
+  margin-bottom: 36px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tabBar::-webkit-scrollbar { display: none; }
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.813rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.tabActive {
+  background: var(--bg-card);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.tabLabel {
+  /* hide on very small screens if needed */
+}
+
+/* ── Tool Panel ──────────────────────────────────────── */
+.toolPanel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 0;
+}
+
+@media (max-width: 480px) {
+  .toolPanel { padding: 18px 14px; }
+  .tab { padding: 8px 10px; font-size: 0.75rem; }
+  .tabLabel { display: none; }
+}
+
 .main {
   flex: 1;
   padding: 40px 24px 60px;

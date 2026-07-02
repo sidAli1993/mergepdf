@@ -1,93 +1,92 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import React, { useState } from 'react';
 import {
-  Merge, Download, RotateCcw, Plus, ShieldCheck,
-  Zap, Lock, CheckCircle2, AlertCircle
+  Merge, Scissors, Eraser, FilePlus, Tag, RotateCw,
+  ShieldCheck, Lock, Zap
 } from 'lucide-react';
 import { Navbar } from '@/components/marketing/Navbar';
 import { Footer } from '@/components/marketing/Footer';
-import { PdfUploader } from '@/components/pdf/PdfUploader';
-import { PdfFileCard, type PdfFile } from '@/components/pdf/PdfFileCard';
-import { mergePdfs, downloadPdf } from '@/components/pdf/pdfMerger';
+import { MergeTool } from '@/components/tools/MergeTool';
+import { SplitTool } from '@/components/tools/SplitTool';
+import { RemovePagesTool } from '@/components/tools/RemovePagesTool';
+import { AddPageTool } from '@/components/tools/AddPageTool';
+import { RenameTool } from '@/components/tools/RenameTool';
+import { RotateTool } from '@/components/tools/RotateTool';
 import styles from './page.module.css';
 
+type ToolId = 'merge' | 'split' | 'remove' | 'add' | 'rename' | 'rotate';
+
+interface Tool {
+  id: ToolId;
+  icon: React.ReactNode;
+  label: string;
+  title: string;
+  titleHighlight: string;
+  desc: string;
+  component: React.ReactNode;
+}
+
+const TOOLS: Tool[] = [
+  {
+    id: 'merge',
+    icon: <Merge size={18} />,
+    label: 'Merge',
+    title: 'Merge PDF Files',
+    titleHighlight: 'Online for Free',
+    desc: 'Combine multiple PDF documents into one file instantly. Drag to reorder before merging.',
+    component: <MergeTool />,
+  },
+  {
+    id: 'split',
+    icon: <Scissors size={18} />,
+    label: 'Split',
+    title: 'Split PDF',
+    titleHighlight: 'by Pages or Ranges',
+    desc: 'Extract page ranges or split a PDF into equal parts. Each part downloads as a separate file.',
+    component: <SplitTool />,
+  },
+  {
+    id: 'remove',
+    icon: <Eraser size={18} />,
+    label: 'Remove Pages',
+    title: 'Remove PDF Pages',
+    titleHighlight: 'with Visual Picker',
+    desc: 'Click on any page thumbnail to mark it for removal, then download the cleaned PDF.',
+    component: <RemovePagesTool />,
+  },
+  {
+    id: 'add',
+    icon: <FilePlus size={18} />,
+    label: 'Add Page',
+    title: 'Add or Insert Pages',
+    titleHighlight: 'at Any Position',
+    desc: 'Insert a blank page or another PDF\'s pages at any position within your document.',
+    component: <AddPageTool />,
+  },
+  {
+    id: 'rename',
+    icon: <Tag size={18} />,
+    label: 'Rename',
+    title: 'Rename PDF Files',
+    titleHighlight: 'Instantly & Free',
+    desc: 'Edit filenames and download your PDFs with new names. Supports batch renaming.',
+    component: <RenameTool />,
+  },
+  {
+    id: 'rotate',
+    icon: <RotateCw size={18} />,
+    label: 'Rotate Pages',
+    title: 'Rotate PDF Pages',
+    titleHighlight: '90°, 180° or 270°',
+    desc: 'Click pages to select them, choose your rotation, and download the corrected PDF.',
+    component: <RotateTool />,
+  },
+];
+
 export default function Home() {
-  const [files, setFiles] = useState<PdfFile[]>([]);
-  const [isMerging, setIsMerging] = useState(false);
-  const [mergedBytes, setMergedBytes] = useState<Uint8Array | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const dragIndex = useRef<number | null>(null);
-  const addMoreRef = useRef<HTMLInputElement>(null);
-
-  const handleFilesAdded = (newFiles: File[]) => {
-    const pdfFiles: PdfFile[] = newFiles.map((file) => ({
-      id: uuidv4(),
-      file,
-    }));
-    setFiles((prev) => [...prev, ...pdfFiles]);
-    setMergedBytes(null);
-    setError(null);
-  };
-
-  const handleRemove = (id: string) => {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
-    setMergedBytes(null);
-  };
-
-  const handleDragStart = (index: number) => { dragIndex.current = index; };
-
-  const handleDragOver = (overIndex: number) => {
-    if (dragIndex.current === null || dragIndex.current === overIndex) return;
-    setFiles((prev) => {
-      const arr = [...prev];
-      const [dragged] = arr.splice(dragIndex.current!, 1);
-      arr.splice(overIndex, 0, dragged);
-      dragIndex.current = overIndex;
-      return arr;
-    });
-  };
-
-  const handleDragEnd = () => { dragIndex.current = null; };
-
-  const handleMerge = async () => {
-    if (files.length < 2) {
-      setError('Please add at least 2 PDF files to merge.');
-      return;
-    }
-    setIsMerging(true);
-    setError(null);
-    try {
-      const bytes = await mergePdfs(files);
-      setMergedBytes(bytes);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to merge PDFs. Please ensure all files are valid PDF documents.');
-    } finally {
-      setIsMerging(false);
-    }
-  };
-
-  const handleDownload = () => {
-    if (mergedBytes) downloadPdf(mergedBytes, 'merged-document.pdf');
-  };
-
-  const handleReset = () => {
-    setFiles([]);
-    setMergedBytes(null);
-    setError(null);
-  };
-
-  const handleAddMore = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newFiles = Array.from(e.target.files || []).filter(
-      (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
-    );
-    if (newFiles.length) handleFilesAdded(newFiles);
-    e.target.value = '';
-  };
-
-  const totalPages = files.reduce((sum, f) => sum + (f.pageCount || 0), 0);
+  const [activeId, setActiveId] = useState<ToolId>('merge');
+  const activeTool = TOOLS.find((t) => t.id === activeId)!;
 
   return (
     <div className={styles.page}>
@@ -95,6 +94,24 @@ export default function Home() {
 
       <main className={styles.main}>
         <div className={styles.container}>
+
+          {/* Tab bar */}
+          <div className={styles.tabBar} role="tablist" aria-label="PDF Tools">
+            {TOOLS.map((tool) => (
+              <button
+                key={tool.id}
+                role="tab"
+                aria-selected={activeId === tool.id}
+                className={`${styles.tab} ${activeId === tool.id ? styles.tabActive : ''}`}
+                onClick={() => setActiveId(tool.id)}
+                id={`tab-${tool.id}`}
+              >
+                {tool.icon}
+                <span className={styles.tabLabel}>{tool.label}</span>
+              </button>
+            ))}
+          </div>
+
           {/* Hero */}
           <div className={styles.hero}>
             <div className={styles.badge}>
@@ -102,100 +119,16 @@ export default function Home() {
               No uploads · 100% Private · Free Forever
             </div>
             <h1 className={styles.heroTitle}>
-              Merge PDF Files <span>Online for Free</span>
+              {activeTool.title}{' '}
+              <span>{activeTool.titleHighlight}</span>
             </h1>
-            <p className={styles.heroDesc}>
-              Combine multiple PDF documents into one file instantly.
-              All processing happens locally in your browser — your files never touch a server.
-            </p>
+            <p className={styles.heroDesc}>{activeTool.desc}</p>
           </div>
 
-          {/* Main Tool */}
-          {files.length === 0 ? (
-            <PdfUploader onFilesAdded={handleFilesAdded} />
-          ) : (
-            <>
-              {/* File list */}
-              <div className={styles.fileListHeader}>
-                <span className={styles.fileListTitle}>
-                  {files.length} file{files.length !== 1 ? 's' : ''} selected
-                  {totalPages > 0 && ` · ${totalPages} total pages`}
-                </span>
-                <span className={styles.fileCount}>Drag to reorder</span>
-              </div>
-
-              <div className={styles.fileList}>
-                {files.map((pdfFile, index) => (
-                  <PdfFileCard
-                    key={pdfFile.id}
-                    pdfFile={pdfFile}
-                    index={index}
-                    onRemove={handleRemove}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDragEnd={handleDragEnd}
-                    isDragging={dragIndex.current === index}
-                  />
-                ))}
-              </div>
-
-              {/* Add more */}
-              <label className={styles.addMoreBtn}>
-                <Plus size={16} />
-                Add More PDFs
-                <input
-                  ref={addMoreRef}
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  multiple
-                  style={{ display: 'none' }}
-                  onChange={handleAddMore}
-                />
-              </label>
-
-              {/* Error */}
-              {error && (
-                <div className={styles.errorMsg}>
-                  <AlertCircle size={16} />
-                  {error}
-                </div>
-              )}
-
-              {/* Merged success state */}
-              {mergedBytes ? (
-                <div className={styles.successCard}>
-                  <CheckCircle2 className={styles.successIcon} size={40} />
-                  <h2 className={styles.successTitle}>PDF Merged Successfully!</h2>
-                  <p className={styles.successDesc}>
-                    Your {files.length} PDFs have been combined into one document locally in your browser.
-                  </p>
-                  <button className={styles.downloadBtn} onClick={handleDownload}>
-                    <Download size={16} />
-                    Download Merged PDF
-                  </button>
-                  <button className={styles.mergeAgainBtn} onClick={handleReset}>
-                    Start over with new files
-                  </button>
-                </div>
-              ) : (
-                <div className={styles.actionBar}>
-                  <button
-                    className={`${styles.mergeBtn} ${isMerging ? styles.mergeBtnLoading : ''}`}
-                    onClick={handleMerge}
-                    disabled={isMerging || files.length < 2}
-                    id="merge-button"
-                  >
-                    <Merge size={18} />
-                    {isMerging ? 'Merging PDFs...' : `Merge ${files.length} PDFs into One`}
-                  </button>
-                  <button className={styles.resetBtn} onClick={handleReset}>
-                    <RotateCcw size={14} />
-                    Clear all files
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+          {/* Tool panel */}
+          <div className={styles.toolPanel} role="tabpanel" aria-labelledby={`tab-${activeId}`}>
+            {activeTool.component}
+          </div>
 
           {/* Trust row */}
           <div className={styles.trustRow}>
